@@ -1,10 +1,10 @@
-function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh)
+function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh,showBool)
     % Image analysis
-    sB = mextractor(FITS.read2sim(Bfitspath),'Thresh',10);
+    sB = mextractor(FITS.read2sim(Bfitspath),'Thresh',5,'GAIN',3.78);
     sB.Cat(isnan(sB.Cat(:,sB.Col.MAG_PSF)),:)=[];
-    sV = mextractor(FITS.read2sim(Vfitspath),'Thresh',10);
+    sV = mextractor(FITS.read2sim(Vfitspath),'Thresh',5,'GAIN',3.78);
     sV.Cat(isnan(sV.Cat(:,sV.Col.MAG_PSF)),:)=[];
-    sI = mextractor(FITS.read2sim(Ifitspath),'Thresh',10);
+    sI = mextractor(FITS.read2sim(Ifitspath),'Thresh',5,'GAIN',3.78);
     sI.Cat(isnan(sI.Cat(:,sI.Col.MAG_PSF)),:)=[];
     
     % Load catalog from simbad website
@@ -12,15 +12,7 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh)
     CatData(CatData(:,4)==999 | CatData(:,5)==999 | CatData(:,7)==999,:) = [];
     
     % Initialize arrays used for atmospheric and standar calibration
-    bIdx = [];
-    vIdx = [];
-    iIdx = [];
-    bM_ins = [];
-    bM_cat = [];
-    vM_ins = [];
-    vM_cat = [];
-    iM_ins = [];
-    iM_cat = [];
+    bIdx = []; vIdx = []; iIdx = []; bM_ins = []; bM_cat = []; vM_ins = []; vM_cat = []; iM_ins = [];  iM_cat = [];
     % For each detection in V image...
     for i=1:size(sV.Cat,1)
         % ... find same detection in B, I images and catalog reference
@@ -47,24 +39,54 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh)
     
     % Discard missmatched detections
     outliersMatched = isoutlier(bM_ins - bM_cat) | isoutlier(vM_ins - vM_cat) | isoutlier(iM_ins - iM_cat);
-    bM_ins(outliersMatched) = [];
-    bM_cat(outliersMatched) = [];
-    vM_ins(outliersMatched) = [];
-    vM_cat(outliersMatched) = [];
-    iM_ins(outliersMatched) = [];
-    iM_cat(outliersMatched) = [];
+    bM_ins(outliersMatched) = []; bM_cat(outliersMatched) = []; 
+    vM_ins(outliersMatched) = []; vM_cat(outliersMatched) = []; 
+    iM_ins(outliersMatched) = []; iM_cat(outliersMatched) = [];
     
     % Calculate zero point for each filter
-    bZP = mean(bM_ins - bM_cat);
-    vZP = mean(vM_ins - vM_cat);
-    iZP = mean(iM_ins - iM_cat);
+    fb = fit(bM_ins,bM_cat,'poly1');
+    if showBool
+        figure(1)
+        plot(bM_ins,bM_cat,'k.')
+        hold on
+        plot(fb,'b')
+        grid on
+        xlabel('M_i_n_s')
+        ylabel('M_c_a_t')
+        title('Filter B')
+    end
+    bZP = fb.p2;
+    fv = fit(vM_ins,vM_cat,'poly1');
+    if showBool
+        figure(2)
+        plot(vM_ins,vM_cat,'k.')
+        hold on
+        plot(fv,'g')
+        grid on
+        xlabel('M_i_n_s')
+        ylabel('M_c_a_t')
+        title('Filter V')
+    end
+    vZP = fv.p2;
+    fi = fit(iM_ins,iM_cat,'poly1');
+    if showBool
+        figure(3)
+        plot(iM_ins,iM_cat,'k.')
+        hold on
+        plot(fi,'r')
+        grid on
+        xlabel('M_i_n_s')
+        ylabel('M_c_a_t')
+        title('Filter I')
+    end
+    iZP = fi.p2;
     
     % And get C1, C2, C3 and C4 by color calibration
-    cal_Bobs = bM_ins - bZP;
-    cal_Vobs = vM_ins - vZP;
+    cal_Bobs = bM_ins + bZP;
+    cal_Vobs = vM_ins + vZP;
     cal_BmVobs = cal_Bobs - cal_Vobs;
     cal_BmV = bM_cat - vM_cat;
-    cal_Iobs = iM_ins - iZP;
+    cal_Iobs = iM_ins + iZP;
     cal_VmIobs = cal_Vobs - cal_Iobs;
     cal_VmI = vM_cat - iM_cat;
     
@@ -84,9 +106,9 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh)
     
     
     % Correct all detections by zero point
-    sB.Cat(bIdx,sB.Col.MAG_PSF) = sB.Cat(bIdx,sB.Col.MAG_PSF) - bZP;
-    sV.Cat(vIdx,sV.Col.MAG_PSF) = sV.Cat(vIdx,sV.Col.MAG_PSF) - vZP;
-    sI.Cat(iIdx,sI.Col.MAG_PSF) = sI.Cat(iIdx,sI.Col.MAG_PSF) - iZP;
+    sB.Cat(bIdx,sB.Col.MAG_PSF) = sB.Cat(bIdx,sB.Col.MAG_PSF) + bZP;
+    sV.Cat(vIdx,sV.Col.MAG_PSF) = sV.Cat(vIdx,sV.Col.MAG_PSF) + vZP;
+    sI.Cat(iIdx,sI.Col.MAG_PSF) = sI.Cat(iIdx,sI.Col.MAG_PSF) + iZP;
     
     % And apply standar calibration equations
     BmV = bvC3*(sB.Cat(bIdx,sB.Col.MAG_PSF) - sV.Cat(vIdx,sV.Col.MAG_PSF)) + bvC4;
@@ -96,7 +118,7 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh)
     I = sI.Cat(iIdx,sI.Col.MAG_PSF) + viC1*VmI + viC2;
     
     % Plot the result as HR diagram
-    figure
+    figure(3)
     subplot(121)
     plot(BmV,V,'k.','MarkerSize',3)
     grid on
@@ -107,4 +129,15 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh)
     grid on
     axis([-0.2 1.3 13 22.5])
     set(gca, 'YDir','reverse')
+    
+    
+    
+    PixelData = reshape(sV.Im,[1,numel(sV.Im)]);
+    NormPixelData = 1./(1 + exp((-PixelData + (0.7*median(PixelData) + 1*std(PixelData)))./(10*std(PixelData))));
+    imNorm = reshape(NormPixelData,size(sV.Im));
+    figure(4)
+    imshow(imNorm)
+    hold on
+    plot(sV.Cat(vIdx,sB.Col.XWIN_IMAGE),sV.Cat(vIdx,sB.Col.YWIN_IMAGE),'go')
+    
 end
