@@ -1,10 +1,10 @@
 function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh,showBool)
     % Image analysis
-    sB = mextractor(FITS.read2sim(Bfitspath),'Thresh',5,'GAIN',3.78);
+    sB = mextractor(FITS.read2sim(Bfitspath),'Thresh',10,'GAIN',3.78);
     sB.Cat(isnan(sB.Cat(:,sB.Col.MAG_PSF)),:)=[];
-    sV = mextractor(FITS.read2sim(Vfitspath),'Thresh',5,'GAIN',3.78);
+    sV = mextractor(FITS.read2sim(Vfitspath),'Thresh',10,'GAIN',3.78);
     sV.Cat(isnan(sV.Cat(:,sV.Col.MAG_PSF)),:)=[];
-    sI = mextractor(FITS.read2sim(Ifitspath),'Thresh',5,'GAIN',3.78);
+    sI = mextractor(FITS.read2sim(Ifitspath),'Thresh',10,'GAIN',3.78);
     sI.Cat(isnan(sI.Cat(:,sI.Col.MAG_PSF)),:)=[];
     
     % Load catalog from simbad website
@@ -46,7 +46,7 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh,showBool)
     % Calculate zero point for each filter
     fb = fit(bM_ins,bM_cat,'poly1');
     if showBool
-        figure(1)
+        figure(2)
         plot(bM_ins,bM_cat,'k.')
         hold on
         plot(fb,'b')
@@ -58,7 +58,7 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh,showBool)
     bZP = fb.p2;
     fv = fit(vM_ins,vM_cat,'poly1');
     if showBool
-        figure(2)
+        figure(3)
         plot(vM_ins,vM_cat,'k.')
         hold on
         plot(fv,'g')
@@ -70,7 +70,7 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh,showBool)
     vZP = fv.p2;
     fi = fit(iM_ins,iM_cat,'poly1');
     if showBool
-        figure(3)
+        figure(4)
         plot(iM_ins,iM_cat,'k.')
         hold on
         plot(fi,'r')
@@ -97,6 +97,21 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh,showBool)
     bvC3 = bvfstd34.p1;
     bvC4 = bvfstd34.p2;
     
+    if showBool
+        figure(5)
+        plot(fit(cal_BmV,vM_cat-cal_Vobs,'poly1'),cal_BmV,vM_cat-cal_Vobs)
+        xlabel('B-V')
+        xlabel('B_c_a_t-V_c_a_t')
+        ylabel('V_c_a_t - V_o_b_s')
+        grid on
+        figure(6)
+        plot(fit(cal_BmVobs,cal_BmV,'poly1'),cal_BmVobs,cal_BmV)
+        xlabel('B-V')
+        xlabel('B_o_b_s-V_o_b_s')
+        ylabel('B_c_a_t-V_c_a_t')
+        grid on
+    end
+    
     vifstd12 = fit(cal_VmI,iM_cat-cal_Iobs,'poly1');
     viC1 = vifstd12.p1;
     viC2 = vifstd12.p2;
@@ -104,6 +119,20 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh,showBool)
     viC3 = vifstd34.p1;
     viC4 = vifstd34.p2;
     
+    if showBool
+        figure(7)
+        plot(fit(cal_VmI,iM_cat-cal_Iobs,'poly1'),cal_VmI,iM_cat-cal_Iobs)
+        xlabel('V-I')
+        xlabel('V_c_a_t-I_c_a_t')
+        ylabel('I_c_a_t - I_o_b_s')
+        grid on
+        figure(8)
+        plot(fit(cal_VmIobs,cal_VmI,'poly1'),cal_VmIobs,cal_VmI)
+        xlabel('V-I')
+        xlabel('V_o_b_s-I_o_b_s')
+        ylabel('V_c_a_t-I_c_a_t')
+        grid on
+    end
     
     % Correct all detections by zero point
     sB.Cat(bIdx,sB.Col.MAG_PSF) = sB.Cat(bIdx,sB.Col.MAG_PSF) + bZP;
@@ -118,26 +147,19 @@ function ClAnalysis(Bfitspath,Vfitspath,Ifitspath,arcsecThresh,showBool)
     I = sI.Cat(iIdx,sI.Col.MAG_PSF) + viC1*VmI + viC2;
     
     % Plot the result as HR diagram
-    figure(3)
+    figure(1)
     subplot(121)
     plot(BmV,V,'k.','MarkerSize',3)
     grid on
+    xlabel('B-V')
+    ylabel('V')
     axis([-0.3 2 13 22.5])
     set(gca, 'YDir','reverse')
     subplot(122)
     plot(VmI,V,'k.','MarkerSize',3)
     grid on
+    xlabel('V-I')
+    ylabel('V')
     axis([-0.2 1.3 13 22.5])
     set(gca, 'YDir','reverse')
-    
-    
-    
-    PixelData = reshape(sV.Im,[1,numel(sV.Im)]);
-    NormPixelData = 1./(1 + exp((-PixelData + (0.7*median(PixelData) + 1*std(PixelData)))./(10*std(PixelData))));
-    imNorm = reshape(NormPixelData,size(sV.Im));
-    figure(4)
-    imshow(imNorm)
-    hold on
-    plot(sV.Cat(vIdx,sB.Col.XWIN_IMAGE),sV.Cat(vIdx,sB.Col.YWIN_IMAGE),'go')
-    
 end
